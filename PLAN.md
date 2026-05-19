@@ -29,8 +29,8 @@ Adopt STANDARDS.md Part 2 directory layout, replacing the flat C structure:
 dwm-win32/
 ├── .cargo/
 │   └── config.toml              # strict compiler flags, Zig linker
-├── .gitoxide/
-│   └── config                   # strict mode, git:// forbidden
+├── .jj/                               # Jujutsu repo data (auto-created by jj git init)
+│   └── config.toml                    # jj user configuration
 ├── .github/workflows/
 │   ├── ci.yml                   # lint → test → proof → fuzz → build → docs → audit
 │   ├── docs.yml                 # AsciiDoc build + Vale lint

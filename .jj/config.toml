@@ -1,0 +1,18 @@
+# ─────────────────────────────────────────
+# Jujutsu (jj) Project Configuration
+# See STANDARDS.md §10.2 for full reference
+# ─────────────────────────────────────────
+
+[git]
+# jj interoperates with GitHub; pushes real git commits
+auto-local-branch = true
+rebase = true
+push-conflict = false
+
+[ui]
+editor = "hx"
+
+[templates]
+log = """
+change_id shortest " " commit_id.shortest " " bookmarks " " description " " empty
+"""

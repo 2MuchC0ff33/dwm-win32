@@ -37,13 +37,13 @@ Step 2:  Update Cargo.toml metadata for your project (Part 3)
 Step 3:  Run dev-setup.nu to install the toolchain (Part 11)
 Step 4:  Configure CI pipeline per-project (Part 6, 7, 9)
 Step 5:  Consult Part 13 to remove sections that don't apply to your project type
-Step 6:  Commit this STANDARDS.md as the first commit
+Step 6:  Record this STANDARDS.md as the first tracked state
 Step 7:  Open an issue for every deviation from this standard you discover during setup
 ```
 
 ### P.4 Standard Versioning
 
-This standard itself follows semantic versioning. Changes are tracked in the git history
+This standard itself follows semantic versioning. Changes are tracked in the VCS history
 of `STANDARDS.md`. Projects pin to a specific version by copying the standard at that
 version. When the standard updates, projects evaluate migration at their own cadence,
 but MUST comply with the new standard within 6 months of release.
@@ -88,7 +88,7 @@ MANDATE: No function exceeds 40 lines (one terminal screen).
 MANDATE: One purpose per function. If a function has "and" in its name,
          it does too many things.
 MANDATE: No dead code. If it compiles but is never called, remove it.
-MANDATE: No commented-out code. Use git history.
+MANDATE: No commented-out code. Use VCS history (`jj log` / `pijul log`).
 MANDATE: Every public item MUST have a doc comment explaining what it is,
          what it does, and (if applicable) when it panics.
 FORBIDDEN: Conditional compilation (#[cfg]) for platform-specific code
@@ -481,7 +481,8 @@ The deal is explicit:
 | **Cross-compilation** | `cargo-zigbuild` (Zig linker) | "Build once, run anywhere." Zig cc bundles musl, glibc, and all target libs in one binary. No per-target toolchain installation. |
 | **Linker** | Zig `cc` (via `cargo-zigbuild`) | Produces statically-linked, portable binaries for any target. Eliminates linker version mismatches. |
 | **Shell** | Nushell | Structured data pipelines, typed variables, no string-whispering. |
-| **Git client** | `gitoxide` (`gix`) with `git` fallback | Rust-native, faster, but acknowledged incomplete. This standard tracks `gix` progress and updates when gaps close. |
+| **VCS (philosophical ideal)** | **Pijul** | Patch-theory-based VCS. Formally grounded merge model eliminates merge conflicts at the mathematical level. MANDATE: all new projects shall target pijul as the long-term VCS. | |---|---|---|
+| **VCS (practical implementation)** | **Jujutsu (`jj`)** with git backend | Change-oriented VCS, 100% git-compatible. Adopted until pijul reaches production maturity. Zero migration risk — interoperates with existing GitHub/GitLab infrastructure. |
 | **Formal verification** | Kani model checker | SPARK-equivalent proof of runtime safety. Proves no panics, no overflow, no bounds errors, arbitrary invariants. |
 | **DOD architecture** | ECS (`hecs`) for stateful apps | SoA by construction, cache-friendly, data-driven. `hecs` chosen for minimalism (~2000 LOC, no macros). |
 | **Data serialization** | ASN.1 + DER (Distinguished Encoding Rules) | Deterministic encoding, schema-enforced, cryptography-grade. Only DER — never BER, CER, XER, or JER. |
@@ -507,8 +508,9 @@ The deal is explicit:
 | Lint | `clippy` | bundled with rustc | latest | `rustup component add` | CI weekly |
 | Format | `rustfmt` | bundled with rustc | latest | `rustup component add` | CI weekly |
 | Task runner | `just` | 1.36.0 | latest | `cargo install --locked` | project release |
-| Git (Rust) | `gix` | 0.66.0 | latest | `cargo install --locked` | CI monthly |
-| Git (fallback) | `git` | 2.40.0 | latest | system pkg | system updates |
+| Day-to-day VCS | `jj` | 0.41.0 | latest | `cargo install --locked jujutsu` | CI monthly |
+| Philosophical ideal VCS | `pijul` | 1.0.0-beta.10 | latest beta | `cargo install --locked pijul` | project release |
+| Git fallback | `git` | 2.40.0 | latest | system pkg | system updates |
 | Shell | `nu` | 0.99.0 | latest | `cargo install --locked` | CI monthly |
 | Documentation | `asciidoctor` | 2.0.0 | latest | `gem install` | CI monthly |
 | Documentation PDF | `asciidoctor-pdf` | 2.3.0 | latest | `gem install` | project release |
@@ -536,7 +538,7 @@ The deal is explicit:
 | Shell prompt | `starship` | 1.20.0 | latest | `cargo install --locked` | CI quarterly |
 | Terminal multiplexer | `zellij` | 0.40.0 | latest | `cargo install --locked` | CI quarterly |
 | GPU-accelerated terminal | `alacritty` | 0.14.0 | latest | system pkg + `cargo install` | project release |
-| Git TUI client | `gitui` | 0.26.0 | latest | `cargo install --locked` | CI quarterly |
+| jj TUI | `gg` | latest | latest | `cargo install --locked gg` | CI quarterly |
 | Network utilization | `bandwhich` | 0.23.0 | latest | `cargo install --locked` | CI quarterly |
 | Ping with graphs | `gping` | 1.16.0 | latest | `cargo install --locked` | CI quarterly |
 | GNU coreutils rewrite | `coreutils` (uutils) | 0.0.27 | latest | `cargo install --locked` | project release |
@@ -616,7 +618,8 @@ All targets SHALL be buildable with a single `just cross` command.
 | **alacritty** (`alacritty`) | xterm, gnome-terminal, konsole | Full drop-in. GPU-accelerated. Note: requires `cmake`, `freetype`, `fontconfig` system packages. | `cargo install --locked alacritty` |
 | **helix** (`hx`) | `vim` / `neovim` | Full drop-in. Built-in LSP, tree-sitter, file picker. No plugin system (by design). | `cargo install --locked helix` |
 | **just** (`just`) | `make` | Full drop-in (command runner). Simpler syntax, no Makefile quirks. | `cargo install --locked just` |
-| **gitui** (`gitui`) | `git` TUI operations | Drop-in for interactive staging, committing, branching. Not a full git replacement. | `cargo install --locked gitui` |
+| **jj** (`jj`) | `git` full replacement | Change-oriented VCS, 100% git-compatible. Automatic rebase, undo, no staging area. | `cargo install --locked jujutsu` |
+| **gg** (`gg`) | `gitui` / git TUI | TUI for jj — interactive log, diff, and operation browser. | `cargo install --locked gg` |
 
 #### 1.4.4 Essential Short List
 
@@ -633,6 +636,7 @@ delta     → diff     (git diff becomes beautiful)
 starship  → prompt   (fast, informative, works in any shell)
 helix     → vim      (LSP built-in, no plugin config)
 just      → make     (no Makefile syntax, no tabs vs spaces)
+jj        → git      (auto-rebase, undo, safer workflow)
 sd        → sed      (simple find-and-replace, regex consistent)
 ```
 
@@ -665,8 +669,8 @@ project/
 ├── .cargo/
 │   ├── config.toml                   # strict compiler flags, zig linker config
 │   └── credentials.toml              # template only (gitignored with contents)
-├── .gitoxide/
-│   └── config                        # strict mode, git:// protocol forbidden
+├── .jj/                               # Jujutsu repo data (auto-created by `jj git init`)
+│   └── config.toml                    # jj user configuration (see Part 10)
 ├── .github/
 │   ├── CODEOWNERS                    # every file owned by a team
 │   └── workflows/                    # CI pipeline definitions
@@ -2212,20 +2216,36 @@ cross-one TARGET:
     cargo xtask cross --target {{TARGET}}
 
 # ─────────────────────────────────────────
-# GIT / VERSION CONTROL
+# VERSION CONTROL (jj with git backend)
 # ─────────────────────────────────────────
-
-# Verify git configuration
-git-check:
-    nu scripts/check-git-config.nu
 
 # Show repository status
 status:
-    gix status
+    jj status
 
-# Show diff with delta
+# Show log with graph
+log:
+    jj log
+
+# Show diff
 diff:
-    delta
+    jj diff
+
+# Undo last operation
+undo:
+    jj undo
+
+# Create new change (branch)
+new BRANCH:
+    jj new --insert-after {{BRANCH}}
+
+# Describe current change (commit message)
+describe MSG:
+    jj describe -m {{MSG}}
+
+# Push to GitHub
+push:
+    jj git push
 
 # ─────────────────────────────────────────
 # RELEASE
@@ -2688,104 +2708,145 @@ README.md (generated for crates.io, in .gitignore)
 
 ## Part 10: Version Control
 
-### 10.1 Git Configuration (~/.gitconfig)
+### 10.1 Guiding Philosophy
+
+This standard uses a **dual VCS approach**:
+
+| Layer | Tool | Role | Status |
+|-------|------|------|--------|
+| **Philosophical ideal** | **Pijul** | Patch-theory VCS. Formally grounded merge model — patches are first-class mathematical objects that commute, meaning merge conflicts are eliminated at the theoretical level. | Aspirational target. Adopt when pijul reaches production maturity (>= 1.0.0, stable SSH, proven ecosystem). |
+| **Practical implementation** | **Jujutsu (`jj`)** | Change-oriented VCS built on git storage. 100% git-compatible — interoperates with GitHub/GitLab without migration. | Day-to-day tool. Used now. |
+| **Fallback** | **`git`** | VCS of last resort for edge cases `jj` does not handle. | GitHub/GitLab protocol, submodules, `git am`. |
+
+**RATIONALE:** Pijul's patch algebra (based on category theory pushouts) is the only VCS model that matches this standard's correctness requirements — it mathematically guarantees that two independent sets of patches always produce the same result regardless of application order. However, pijul is not yet production-ready (beta software, single-maintainer, chronic SSH issues, no ecosystem). `jj` provides ~80% of the philosophical benefit (change-oriented design, automatic rebase, first-class undo, conflict recording) with 100% git compatibility, making it the pragmatic choice until pijul matures.
+
+### 10.2 Implementation: Jujutsu (`jj`)
+
+#### 10.2.1 Installation
+
+```bash
+cargo install --locked jujutsu
+```
+
+#### 10.2.2 Initialize in Existing Git Repo
+
+```bash
+cd project/
+jj git init --colocate    # creates .jj/ alongside .git/
+```
+
+The `--colocate` flag keeps the `.git` directory intact so `git` commands and GitHub integration continue to work. Every `jj` operation creates real git commits — your CI, code review, and deployment pipelines see nothing different.
+
+#### 10.2.3 Recommended Repository Configuration (~/.jj/config.toml)
 
 ```toml
 [user]
-    name       = Full Name
-    email      = email@example.com
-    signingkey = YOUR_GPG_KEY_ID
+name = "Full Name"
+email = "email@example.com"
 
-[core]
-    autocrlf   = false
-    eol        = lf
-    safecrlf   = true
-    whitespace = error
-    filemode   = true
-    trustctime = false
-    symlinks   = true
+[ui]
+default-description = "wip"       # default change description
+editor = "hx"                      # helix as default editor
+diff-editor = "hx"                 # editor for conflict resolution
 
-[commit]
-    gpgsign    = true
+[git]
+# Push to the remote whose bookmark matches the current branch
+auto-local-branch = true
+# Rebase onto target when pushing (safe by default)
+rebase = true
+# Push the current change even if it has conflicts
+push-conflict = false               # MANDATE: resolve conflicts before push
 
-[tag]
-    gpgsign    = true
+[colors]
+# Use delta-like colors for diffs
+diff-header = "bold cyan"
+diff-file-header = "bold yellow"
+diff-context = "dim white"
+diff-added = "bold green"
+diff-removed = "bold red"
 
-[push]
-    default         = current
-    autoSetupRemote = true
-    gpgSign         = if-asked
-
-[pull]
-    rebase = true
-    ff     = only
-
-[fetch]
-    prune             = true
-    pruneTags         = true
-    showForcedUpdates = true
-    fsckObjects       = true
-
-[rebase]
-    autoStash           = true
-    missingCommitsCheck = error
-
-[merge]
-    ff               = false
-    log              = true
-    verifySignatures = true
-
-[diff]
-    algorithm  = histogram
-    tool       = delta
-    colorMoved = default
-
-[gpg]
-    format = ssh
-
-[gpg "ssh"]
-    allowedSignersFile = ~/.config/git/allowed_signers
-
-[transfer]
-    fsckObjects = true
-
-[receive]
-    fsckObjects = true
-
-[init]
-    defaultBranch = main
+[templates]
+# Compact one-line log format
+log = """
+change_id shortest " " commit_id.shortest " " bookmarks " " description " " empty
+"""
 ```
 
-### 10.2 Gitoxide Configuration (.gitoxide/config)
+#### 10.2.4 Key Workflow Mapping
 
-```toml
-[core]
-    checkStat = true
+| Intent | Git Command | jj Command | Notes |
+|--------|-------------|------------|-------|
+| Start new work | `git checkout -b feat` | `jj new feat` | Creates a new change on top of `@` |
+| See status | `git status` | `jj status` | Also shows working-copy parent, conflicts |
+| See log | `git log --graph` | `jj log` | Shows graph, change IDs, bookmarks by default |
+| Stage files | `git add` | _(none)_ | Everything auto-snapshotted |
+| Commit | `git commit -m "msg"` | `jj describe -m "msg"` | Describes the current change |
+| Create a commit | `git commit` | `jj new` | After describing, create next change |
+| Undo | `git reset` / reflog | `jj undo` | Full atomic operation undo |
+| Amend | `git commit --amend` | `jj describe` (keeps re-running) | Idempotent — describe as many times as needed |
+| Rebase | `git rebase main` | `jj rebase -d main` | All descendants auto-rebase |
+| Squash | `git rebase -i` | `jj squash` | Squash current change into parent |
+| Split | _(interactive rebase)_ | `jj split` | Interactive file-level split |
+| Abandon | `git branch -D` | `jj abandon` | Marks as abandoned (history preserved) |
+| Checkout old state | `git checkout HASH` | `jj edit HASH` | Working copy becomes that commit |
+| Push | `git push` | `jj git push` | Pushes real git commits |
+| Pull | `git pull --rebase` | `jj git fetch` then `jj rebase -d @-` | jj auto-rebases |
+| Stash | `git stash` | `jj edit @-` | Just switch to another change — no stash needed |
+| Cherry-pick | `git cherry-pick HASH` | `jj new HASH` | Creates child of the target change |
+| Resolve conflicts | edit conflicted files | `jj resolve` | Conflicts are stored in commits — never blocking |
 
-[protocol]
-    allow = user
+#### 10.2.5 How jj Aligns With This Standard
 
-[protocol "file"]
-    allow = always
+| Standard Principle | jj Enables |
+|-------------------|------------|
+| **§0.1 Minimalism** | No staging area. No stash. Fewer concepts to hold in your head. |
+| **§0.2 Data-oriented** | Operation log is append-only data. Undo is just adding more data. |
+| **§0.3 Formal verification** | Change IDs are permanent — no rewriting identity. `jj undo` eliminates the fear that leads to workarounds. |
+| **§0.4 Tooling investment** | One Rust binary replaces `git` and most `git rebase -i` pain. |
+| **§1.4 Rust-native** | Written in Rust. Installs via `cargo install --locked`. |
+| **§6.2.3 Proved correctness** | Automatic rebase, first-class conflicts, full undo stack — fewer manual operations means fewer errors. |
 
-[protocol "https"]
-    allow = always
+#### 10.2.6 Known Gaps vs Git
 
-[protocol "ssh"]
-    allow = always
+| Gap | Workaround |
+|-----|------------|
+| Git submodules unsupported | Use `git submodule` commands for these rare cases |
+| No `prepare-commit-msg` hooks | jj's model doesn't need them (no commit message on `jj new` — only on `jj describe`) |
+| No `jj gh submit` yet | Use `gh` CLI or GitHub web UI to create PRs |
+| No email workflow | Use `git format-patch` / `git am` for kernel-style workflows |
 
-[protocol "git"]
-    allow = never                # FORBIDDEN: insecure protocol
+### 10.3 Philosophical Ideal: Pijul
 
-[gix]
-    strict = true
-```
+#### 10.3.1 Why Pijul Is the Long-Term Target
 
-### 10.3 Branch Protection Rules
+Pijul is based on **patch theory** — a formal mathematical model rooted in category theory (pushouts). This gives it properties no snapshot-based VCS can match:
+
+| Property | Git / jj | Pijul |
+|----------|----------|-------|
+| **Merge correctness** | Heuristic (3-way merge) — produces wrong results in edge cases | **Mathematically guaranteed** — the patch algebra always produces the unique correct merged state |
+| **Commutation** | Not supported — patches depend on order | **Patches commute** — independent patches produce the same result regardless of application order |
+| **Conflict representation** | Blocked until resolved, stored in merge commit | **First-class** — conflicts are recorded in the patch DAG, resolvable at any time |
+| **Partial clone** | Worktrees / sparse checkout | **Native** — clone a subset of patches or paths |
+| **Cherry-pick identity** | Creates a new commit (new hash) | **Preserves identity** — same patch, new context |
+
+#### 10.3.2 Migration Path From jj → Pijul
+
+When pijul reaches production maturity (assessed annually):
+
+1. Export jj/git history as patches: `jj git export` or `git format-patch`
+2. Import into pijul: `pijul clone` / `pijul apply` replay
+3. Verify both repos produce identical working trees for all tagged releases
+4. Update CI: replace `actions/checkout@v4` with pijul's native checkout
+5. Update hosting: migrate from GitHub to nest.pijul.com or self-hosted
+6. Update STANDARDS.md Part 10 to remove jj fallback
+
+Until then, all development uses `jj`.
+
+### 10.4 Branch Protection & Collaboration Rules
 
 ```
 MANDATE:
-  - main branch: protected
+  - main channel (git: main branch): protected
   - Requires PR with 2 approvals
   - Dismiss stale reviews on new commits
   - Require code owner reviews
@@ -2795,6 +2856,8 @@ MANDATE:
   - No deletions
   - Required conversation resolution
 ```
+
+Note: These rules are enforced at the **hosting platform** (GitHub), not the VCS. Since jj pushes real git commits, all existing GitHub protections apply unchanged.
 
 ---
 
@@ -2851,7 +2914,7 @@ alias ps   = procs
 alias top  = btm
 alias sed  = sd
 alias cd   = z
-alias git  = gix                   # intentionally replaces git
+alias git  = jj                    # jj as primary VCS (git-compatible)
 alias diff = delta
 alias curl = xh
 alias dig  = dog
@@ -2862,7 +2925,7 @@ alias tar  = ouch
 # ADDITIONAL RUST-NATIVE UTILITIES
 # ─────────────────────────────────────────
 
-alias gui = gitui                   # Git TUI client (interactive staging, commit)
+alias gui = jj log                  # jj log with graph (TUI-like); or `gg` for dedicated TUI
 alias net = bandwhich               # Network utilization TUI (per-process bandwidth)
 
 # ─────────────────────────────────────────
@@ -2908,7 +2971,7 @@ def main [] {
     let required = [
         {name: "cargo",       min_version: "1.85.0"}
         {name: "rustc",       min_version: "1.85.0"}
-        {name: "gix",         min_version: "0.66.0"}
+        {name: "jj",          min_version: "0.41.0"}
         {name: "just",        min_version: "1.36.0"}
         {name: "asciidoctor", min_version: "2.0.0"}
         {name: "pandoc",      min_version: "3.0.0"}
@@ -2933,7 +2996,7 @@ def main [] {
         {name: "starship",    min_version: "1.20.0"}
         {name: "zellij",      min_version: "0.40.0"}
         {name: "alacritty",   min_version: "0.14.0"}
-        {name: "gitui",       min_version: "0.26.0"}
+        {name: "gg",          min_version: "latest"}
         {name: "bandwhich",   min_version: "0.23.0"}
         {name: "gping",       min_version: "1.16.0"}
         {name: "dog",         min_version: "0.1.0"}
@@ -2986,7 +3049,7 @@ def main [] {
     setup-cargo-tools
     setup-cargo-rust-utils
     setup-doc-tools
-    setup-git
+    setup-vcs
 
     run-external "just" ["deps"]
 
@@ -3049,10 +3112,11 @@ def setup-cargo-rust-utils [] {
         "ouch"
         "xh"
         "git-delta"
+        "jujutsu"
         # Dev environment tools
         "starship"                   # cross-shell prompt
         "zellij"                     # terminal multiplexer
-        "gitui"                      # git TUI client
+        "gg"                         # jj TUI client
         "bandwhich"                  # network utilization
         "gping"                      # ping with graphs
         "dog"                        # DNS lookup (basic)
@@ -3088,25 +3152,14 @@ def setup-doc-tools [] {
     # See: https://vale.sh/docs/install/
 }
 
-def setup-git [] {
-    print "Configuring git..."
+def setup-vcs [] {
+    print "Configuring VCS (jj)..."
+    run-external "jj" ["util", "config", "set", "user.name", (whoami)]
+    run-external "jj" ["util", "config", "set", "user.email", $'(whoami)@(hostname)']
+    run-external "jj" ["util", "config", "set", "ui.editor", "hx"]
 
-    run-external "git" ["config" "--global" "core.autocrlf"   "false"]
-    run-external "git" ["config" "--global" "core.eol"        "lf"]
-    run-external "git" ["config" "--global" "pull.rebase"     "true"]
-    run-external "git" ["config" "--global" "fetch.prune"     "true"]
-    run-external "git" ["config" "--global"
-        "rebase.missingCommitsCheck" "error"]
-    run-external "git" ["config" "--global"
-        "transfer.fsckObjects" "true"]
-    run-external "git" ["config" "--global"
-        "receive.fsckObjects"  "true"]
-    run-external "git" ["config" "--global"
-        "fetch.fsckObjects"    "true"]
-    run-external "git" ["config" "--global"
-        "commit.gpgsign" "true"]
-    run-external "git" ["config" "--global"
-        "tag.gpgsign"    "true"]
+    print "Note: jj is 100% git-compatible. GitHub protections apply unchanged."
+    print "When pijul reaches >=1.0.0 stable, evaluate migration (see STANDARDS.md §10.3)."
 }
 ```
 
@@ -4062,7 +4115,8 @@ By adopting this standard, you commit to:
 | Zig | https://ziglang.org/download |
 | Kani | https://github.com/model-checking/kani |
 | just | https://github.com/casey/just |
-| gix | https://github.com/Byron/gitoxide |
+| jj | https://github.com/jj-vcs/jj |
+| pijul | https://nest.pijul.com/pijul/pijul |
 | Nushell | https://www.nushell.sh |
 | nu-lint | https://crates.io/crates/nu-lint |
 | topiary (tree-sitter formatter) | https://github.com/tweag/topiary |
@@ -4090,7 +4144,7 @@ By adopting this standard, you commit to:
 | starship | https://starship.rs |
 | zellij | https://zellij.dev |
 | alacritty | https://alacritty.org |
-| gitui | https://github.com/extrawurst/gitui |
+| gg | https://github.com/gutmet/gg |
 | bandwhich | https://github.com/imsnif/bandwhich |
 | gping | https://github.com/orf/gping |
 | dog | https://github.com/ogham/dog |

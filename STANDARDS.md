@@ -3326,6 +3326,552 @@ white   = "#a9b1d6"
 
 ---
 
+### 11.5 Nushell Scripting Standards
+
+> **MANDATE:** Every `.nu` file in the project SHALL conform to the rules in this
+> section. CI SHALL enforce these rules via `nu-lint` (see §11.5.11).
+
+**RATIONALE:** Nushell is the organization's shell standard. Scripts are code —
+they deserve the same rigor as Rust code. Consistent style, type safety, and
+security practices prevent bugs at parse time instead of at 3 AM in production.
+
+#### 11.5.1 Naming Conventions
+
+```
+MANDATE:
+  Commands:           kebab-case     fetch-user, build-project
+  Sub-commands:       kebab-case     "db migrate", "config validate"
+  Variables/params:   snake_case     $user_id, $db_conn
+  Environment vars:   SCREAMING_SNAKE_CASE   $env.APP_VERSION
+  Flags:              kebab-case     --output-dir, --dry-run
+  Constants:          SCREAMING_SNAKE_CASE   const API_VERSION = '1.0'
+  Files/modules:      kebab-case     utils.nu, db-migrate.nu
+
+FORBIDDEN:
+  camelCase in commands or variables    fetchUser, $userId
+  snake_case in commands                fetch_user
+  PascalCase in anything                FetchUser, $UserId
+  Abbreviations where full words exist  $usr_nm → $user_name, qry → query
+```
+
+```nu
+# CORRECT
+def fetch-user [user_id: int, --all-caps] {
+    let display_name = $user_id | get-name
+    $'User: ($display_name)'
+}
+
+# INCORRECT
+def fetchUser [userId: int, --all_caps] {
+    let displayName = $userId | get-name     # camelCase variable
+    $'User: ($displayName)'
+}
+```
+
+#### 11.5.2 Formatting Rules
+
+**Defaults:**
+
+```
+MANDATE:
+  - One space before and after pipe `|`
+  - No consecutive spaces (except inside strings)
+  - Omit commas between list items
+  - No trailing whitespace on any line
+  - No space before `|params|` in closures: {|x| ...} NOT { |x| ...}
+  - One space after `:` in records: {x: 1} NOT {x:1}
+
+FORBIDDEN:
+  - More than one consecutive space
+  - Commas in list literals
+  - Trailing spaces
+  - Space before closure pipe: { |x| ...}
+```
+
+```nu
+# CORRECT
+[1 2 3 4] | reduce {|elt acc| $elt + $acc }
+{x: 1, y: 2}
+[[status]; [UP] [UP]] | all {|el| $el.status == UP }
+
+# INCORRECT
+[1, 2, 3, 4] |  reduce {|elt, acc| $elt + $acc }   # commas + double space
+{ x: 1, y: 2}                                          # space before x
+[[status]; [UP] [UP]] | all { |el| $el.status == UP }  # space before |el|
+```
+
+**Multi-line Format (use when pipeline >80 chars or contains nested records/lists):**
+
+```
+MANDATE:
+  - Each pipeline step on its own line
+  - Each record key-value pair on its own line
+  - Each list item on its own line
+  - Opening `{` / `[` / `(` on same line as preceding expression
+  - Closing `}` / `]` / `)` on its own line
+  - 4-space indentation for continuation lines
+```
+
+```nu
+# CORRECT — multi-line pipeline
+let result = $data
+    | where size > 1mb
+    | sort-by name
+    | select name path size
+    | first 10
+
+# CORRECT — multi-line record
+let config = {
+    host:    'localhost'
+    port:    8080
+    tls:     true
+    timeout: 30_000
+}
+```
+
+#### 11.5.3 String Format Priority
+
+```
+MANDATE string format selection order (use FIRST matching rule):
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Priority │ Format               │ Example                   │
+  ├──────────┼──────────────────────┼───────────────────────────┤
+  │ 1 (best) │ Bare word in arrays  │ [foo bar baz]             │
+  │ 2        │ Single-quoted        │ 'hello world'             │
+  │ 3        │ Single-quoted interp │ $'val: ($x)'              │
+  │ 4        │ Double-quoted        │ "tab: \t newline: \n"     │
+  │ 5        │ Double-quoted interp │ $"val: ($x)"              │
+  │ 6        │ Raw string           │ r#'\d+\.\d+#'             │
+  └──────────────────────────────────────────────────────────────┘
+
+FORBIDDEN:
+  - Double quotes when single quotes suffice: "hello" → 'hello'
+  - Double-quoted interpolation when single-quoted works
+  - String interpolation with no variables: $"hello" → 'hello'
+```
+
+#### 11.5.4 Type Annotations
+
+```
+MANDATE:
+  - ALL exported commands MUST have type annotations on ALL parameters
+  - ALL exported commands MUST declare I/O signature: ]: input_type -> output_type
+  - ALL constants MUST be typed via declaration: const FOO: string = 'bar'
+  - ALL public commands MUST have a documented return type
+
+SHOULD:
+  - Private commands SHOULD have type annotations (catches parse-time errors)
+  - Complex types SHOULD use proper syntax (see below)
+```
+
+```nu
+# CORRECT — full type annotations + I/O signature
+def process-item [
+    id: int             # Record ID to process
+    --verbose (-v)      # Show detailed output
+    --output: string    # Output file path
+]: int -> record<id: int, status: string> {
+    #       ^ input    ^ output type
+    {id: $id, status: 'ok'}
+}
+
+# Complex type syntax reference:
+#   record<name: string, age: int>
+#   list<string>
+#   table<name: string, count: int>
+#   record<metadata: record<version: string>>
+#   optional: field?: string
+
+# INCORRECT — no types
+def process [id, --verbose] {
+    # parse-time: no way to catch misuse
+}
+```
+
+#### 11.5.5 Pipeline & Functional Style
+
+```
+MANDATE:
+  - Pipelines over imperative loops in ALL cases
+  - `reduce` over `mut` accumulator patterns
+  - `each` over `for` for list transformations
+  - `where` over manual filtering with `if`
+  - `enumerate` over manual index counters
+
+FORBIDDEN:
+  - `mut` for accumulation when pipeline alternative exists
+  - `for` as the final expression in a command (returns null)
+  - `echo` for returning values (use implicit return)
+```
+
+```nu
+# BAD — imperative accumulation
+mut total = 0
+for item in $items {
+    $total += $item.price
+}
+
+# GOOD — functional pipeline
+$items | get price | math sum
+
+# BAD — mut + for to build a list
+mut result = []
+for f in (ls) {
+    if ($f.size > 1mb) {
+        $result = ($result | append $f.name)
+    }
+}
+
+# GOOD — filter pipeline
+ls | where size > 1mb | get name
+
+# BAD — echo for return
+def greet [name: string] {
+    echo $'Hello, ($name)!'
+}
+
+# GOOD — implicit return
+def greet [name: string] {
+    $'Hello, ($name)!'
+}
+
+# BAD — for as final expression (returns null)
+def squares []: nothing -> list<int> {
+    for x in [1 2 3 4] {
+        $x ** 2
+    }  # returns null!
+}
+
+# GOOD — each returns the list
+def squares []: nothing -> list<int> {
+    [1 2 3 4] | each {|x| $x ** 2 }
+}
+```
+
+#### 11.5.6 Module & Export Patterns
+
+```
+MANDATE:
+  - ONLY necessary definitions are `export`-ed
+  - `export def main` when command name matches module filename
+  - `export-env` for environment setup blocks
+  - `source`/`use` paths MUST be `const` (parse-time constant), NOT `let`
+
+SHOULD:
+  - Private helper commands left un-exported (intentionally private)
+  - Submodules use `export module` to preserve namespace
+  - Re-exports use `export use` to flatten namespace
+
+FORBIDDEN:
+  - `source`/`use` with dynamic (runtime) paths — will error
+  - Wildcard re-exports that pull in unexpected names
+```
+
+```nu
+# my-module.nu — CORRECT module pattern
+export def main [] {                # main = module name
+    do-setup
+    do-work
+}
+
+def do-setup [] {                   # private — not exported
+    print 'setup complete'
+}
+
+export def do-work [] {             # public — exported
+    # ...
+}
+
+# INCORRECT — dynamic source path
+let path = './utils.nu'
+source $path                        # Error! Not parse-time constant
+
+# CORRECT — const path
+const PATH = './utils.nu'
+source $PATH
+```
+
+**Export reference:**
+
+| Export Type            | Keyword              | Example                                    |
+|------------------------|----------------------|--------------------------------------------|
+| Commands               | `export def`         | `export def build [] { ... }`              |
+| Env commands           | `export def --env`   | `export def --env setup [] { ... }`        |
+| Aliases                | `export alias`       | `export alias ll = eza -l`                |
+| Constants              | `export const`       | `export const version = '1.0.0'`          |
+| Externals              | `export extern`      | `export extern "git push" [...]`           |
+| Submodules             | `export module`      | `export module utils.nu`                   |
+| Re-exports             | `export use`         | `export use utils.nu *`                    |
+| Env setup              | `export-env`         | `export-env { $env.FOO = 'bar' }`          |
+
+#### 11.5.7 Error Handling
+
+```
+MANDATE:
+  - Fallible operations MUST be wrapped in `try`/`catch`
+  - External commands whose exit code matters MUST use `complete`
+  - Custom errors MUST include `label` with `span` when source metadata exists
+  - `catch` blocks MUST include meaningful error context (never empty)
+
+SHOULD:
+  - Use `default` for optional/fallback values instead of manual null checks
+  - Capture `$in` with `let` when used multiple times (streaming caveat)
+
+FORBIDDEN:
+  - Bare `error make {msg: '...'}` without `label` when span is available
+  - Empty `catch {|| }` blocks
+  - Ignoring external command exit codes via bare `^cmd` when result matters
+```
+
+```nu
+# CORRECT — complete for external command
+let result = (^cargo build o+e>| complete)
+if $result.exit_code != 0 {
+    error make {
+        msg: $'Build failed: ($result.stderr)'
+        label: {
+            text: 'Build error'
+            span: (metadata $result).span
+        }
+    }
+}
+
+# CORRECT — try/catch with context
+try {
+    open $config_path
+} catch {|err|
+    error make {
+        msg: $'Failed to open config at ($config_path): ($err)'
+        label: {text: 'Config error'; span: (metadata $config_path).span}
+    }
+}
+
+# CORRECT — default for null safety
+let name = $input | default 'anonymous'
+# NOT: let name = if $input == null { 'anonymous' } else { $input }
+
+# CORRECT — optional field access with ?
+let version = $record.version? | default '0.0.0'
+# NOT: let version = $record.version   (panics if missing)
+```
+
+#### 11.5.8 Security Practices
+
+```
+CRITICAL — FORBIDDEN:
+  - `nu -c $variable` with untrusted input (code injection)
+  - `source $variable`/`use $variable` with runtime paths
+  - `^sh -c`, `^bash -c`, `^cmd.exe /C` with interpolated user input
+  - `run-external` with user-controlled command names
+  - Hardcoded secrets/tokens/credentials in source code
+
+HIGH — MANDATE:
+  - User-provided paths validated with `path expand` + prefix check
+  - No raw `open $user_input` without path traversal guard
+  - `..` sequences in user paths detected and rejected
+  - `rm` operations validate target path (not `/`, not `$nu.home-path`)
+  - Glob patterns from user input validated (no unintended expansion)
+  - `--depth` limits on `glob` to prevent DoS on large trees
+  - Temp files created with `^mktemp`, not predictable paths
+  - Temp files cleaned up in `try`/`catch` or equivalent
+  - Credentials scoped with `with-env`, not set on `$env` directly
+  - Secrets read from files/stdin, not passed as command-line arguments
+  - External commands prefixed with `^` when name conflicts with builtins
+```
+
+```nu
+# CORRECT — safe external command call
+^find . -name '*.rs'          # explicit external via ^ prefix
+^grep -r 'pattern' src/       # unambiguous external
+
+# INCORRECT — builtin shadows external
+find . -name '*.rs'           # Calls Nushell's find, NOT Unix find!
+grep -r 'pattern' src/        # Calls Nushell's grep, NOT Unix grep!
+
+# CORRECT — scoped credentials
+with-env {DB_PASS: (open --raw /secrets/db_pass)} {
+    ^my-app --connect $env.DB_PASS
+}
+
+# INCORRECT — credential on CLI (visible in ps)
+^my-app --connect (open --raw /secrets/db_pass)
+```
+
+**Nushell builtins vs external commands reference:**
+
+| Ambiguous Name | Nushell Builtin | Unix External (`^`) |
+|----------------|-----------------|---------------------|
+| `find`         | String search   | File search         |
+| `sort`         | Table sort      | Line sort           |
+| `date`         | Date commands   | Date (if installed) |
+| `open`         | File reader     | (rare)              |
+| `source`       | Module loader   | (rare)              |
+
+#### 11.5.9 Anti-Patterns Reference
+
+The following 23 anti-patterns are FORBIDDEN:
+
+```
+ 1. echo for return values         → Use implicit return (last expression)
+ 2. for as final expression        → Use each (returns list)
+ 3. mut accumulator + for          → Use pipeline (reduce, math sum, where)
+ 4. Dynamic source/use paths       → Use const, never let
+ 5. Bash-style redirection (>)     → Use save / save --append
+ 6. String-parsing external output → Use structured commands (ls, http get)
+ 7. Missing type annotations       → Always annotate params + I/O signature
+ 8. Space before |params|          → {|x| ...} NOT { |x| ...}
+ 9. env changes in regular def     → Use def --env to propagate
+10. Unnecessary string interp      → Use simplest format (see §11.5.3)
+11. each when par-each works       → Use par-each for I/O/CPU-bound work
+12. Missing command docs           → Always add # doc comments + @example
+13. Manual null checks             → Use default 'fallback'
+14. Manual structured data parse   → Use from json / open (native parser)
+15. If-else chains for branching   → Use match for multi-branch
+16. Missing --stdin in shebang     → Use #!/usr/bin/env -S nu --stdin
+17. Forgetting export in modules   → Use export def for public API
+18. Confusing pipeline vs params   → Use $in for pipeline input signature
+19. each on single records         → Use items {|key, val| ...}
+20. Missing field access without ? → Use $rec.field? for optional fields
+21. Not prefixing externals with ^ → Use ^cmd when builtin shadows
+22. Ignoring external exit codes   → Use complete for fallible externals
+23. Length checks for emptiness    → Use is-empty / is-not-empty
+```
+
+#### 11.5.10 Performance Patterns
+
+```
+MANDATE in CI scripts and hot paths:
+  - Use `par-each` for I/O-bound work (file reads, HTTP requests, network)
+  - Use `par-each` for CPU-bound work (data processing, transforms)
+  - Use `each` ONLY when order must be preserved or list is very small
+  - Expensive results cached in `let` bindings, never recomputed
+  - `--depth` limits on `glob` to avoid scanning huge directory trees
+
+SHOULD:
+  - `each --flatten` for streaming nested results
+  - `lines` + pipeline for line-by-line processing of large files
+  - Built-in commands preferred over external for small data (<1000 items)
+  - External tools (`^rg`, `^jq`, `^awk`) for large-scale operations
+  - `first N` / `take while` to limit processing early
+
+FORBIDDEN:
+  - Loading entire large files into memory when streaming suffices
+  - Unbounded `glob` without `--depth`
+```
+
+```nu
+# BAD — sequential file processing (slow)
+ls **/*.json | each {|f| open $f.name | get version }
+
+# GOOD — parallel file processing
+ls **/*.json | par-each {|f| open $f.name | get version }
+
+# BAD — recompute expensive result
+if (ls | length) > 100 {
+    print $'Many files: (ls | length)'   # ls called twice!
+}
+
+# GOOD — bind once
+let files = (ls)
+if ($files | length) > 100 {
+    print $'Many files: ($files | length)'
+}
+```
+
+#### 11.5.11 Linting & Formatting
+
+```
+MANDATE:
+  - ALL `.nu` files SHALL pass `nu-lint` in CI
+  - CI SHALL fail on any `nu-lint` error
+  - Project root SHALL contain a `.nu-lint.toml` configuration
+
+SHOULD:
+  - `nu-lint` integrated into pre-commit hooks
+  - `topiary` (tree-sitter formatter) used for automated formatting
+```
+
+**Sample `.nu-lint.toml`:**
+
+```toml
+max_pipeline_length = 80
+pipeline_placement = "start"
+explicit_optional_access = true
+
+[groups]
+security     = "error"
+type-safety  = "error"
+performance  = "warning"
+naming       = "error"
+formatting   = "error"
+documentation = "warning"
+idioms       = "error"
+effects      = "error"
+
+[rules]
+kebab_case_commands          = "error"
+snake_case_variables         = "error"
+screaming_snake_constants    = "error"
+missing_output_type          = "error"
+add_type_hints_arguments     = "error"
+add_doc_comment_exported_fn  = "warning"
+unchecked_cell_path_index    = "error"
+inconsistent_pipe_spacing    = "error"
+for_instead_of_each          = "warning"
+mut_instead_of_reduce        = "warning"
+hat_external_commands        = "error"
+dynamic_script_import        = "error"
+```
+
+**CI integration:**
+
+```yaml
+# In CI workflow:
+- name: Lint Nushell scripts
+  run: |
+    nu-lint check scripts/ src/  # exit code != 0 → CI fails
+```
+
+#### 11.5.12 Testing Nushell Code
+
+```
+MANDATE:
+  - ALL exported commands in shared modules SHALL have tests
+  - Tests SHALL be placed in a `tests/` subdirectory relative to the module
+  - Test files SHALL be named `<module>.test.nu`
+
+SHOULD:
+  - Use `nupm test` when working within a nupm-managed project
+  - Use `assert` commands from the standard library
+  - Provide `@example` attributes on non-trivial commands (used as doc-tests)
+```
+
+```nu
+# my-module.nu
+# Adds two numbers together.
+# @example 'Add 2 and 3' { add 2 3 }  # returns 5
+export def add [a: int, b: int]: nothing -> int {
+    $a + $b
+}
+
+# tests/my-module.test.nu
+use ../my-module.nu *
+
+#[test]
+def test_add [] {
+    let result = add 2 3
+    assert equal $result 5
+}
+
+#[test]
+def test_add_negative [] {
+    let result = add (-1) 1
+    assert equal $result 0
+}
+```
+
+---
+
 ## Part 12: Error Handling & Proof Taxonomy
 
 ### 12.1 Error Type Principles
@@ -3518,6 +4064,8 @@ By adopting this standard, you commit to:
 | just | https://github.com/casey/just |
 | gix | https://github.com/Byron/gitoxide |
 | Nushell | https://www.nushell.sh |
+| nu-lint | https://crates.io/crates/nu-lint |
+| topiary (tree-sitter formatter) | https://github.com/tweag/topiary |
 | Asciidoctor | https://asciidoctor.org |
 | Vale | https://vale.sh |
 | proptest | https://github.com/proptest-rs/proptest |

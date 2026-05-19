@@ -493,59 +493,18 @@ The deal is explicit:
 
 ### 1.2 Toolchain Versions Matrix
 
-> **MANDATE:** Every project SHALL pin tool versions in CI configuration.
-> **MANDATE:** Every project SHALL run `scripts/check-deps.nu` before any build.
+> **MANDATE:** Every project SHALL pin ALL tool versions via Nix Flakes.
+> **MANDATE:** Every project SHALL provide a `flake.nix` at repository root.
+> **MANDATE:** Every project SHALL lock `rust-toolchain.toml` to an exact version.
 
-| Tool | Package | Min Version | Preferred | Install | Update Cadence |
-|------|---------|-------------|-----------|---------|----------------|
-| Rust compiler | `rustc` | 1.85.0 | latest stable | `rustup` | CI weekly |
-| Rust package manager | `cargo` | 1.85.0 | latest stable | `rustup` | CI weekly |
-| Cross-compile | `cargo-zigbuild` | 0.19.0 | latest | `cargo install --locked` | project release |
-| Zig linker | `zig` | 0.13.0 | latest | `zigup` or system pkg | project release |
-| Kani verifier | `cargo-kani` | 0.55.0 | latest | `cargo install --locked` | CI monthly |
-| Property testing | `proptest` | 1.5.0 | latest | crate dep | cargo update |
-| Fuzzing | `cargo-fuzz` | 0.12.0 | latest | `cargo install --locked` | CI monthly |
-| Lint | `clippy` | bundled with rustc | latest | `rustup component add` | CI weekly |
-| Format | `rustfmt` | bundled with rustc | latest | `rustup component add` | CI weekly |
-| Task runner | `just` | 1.36.0 | latest | `cargo install --locked` | project release |
-| Day-to-day VCS | `jj` | 0.41.0 | latest | `cargo install --locked jujutsu` | CI monthly |
-| Philosophical ideal VCS | `pijul` | 1.0.0-beta.10 | latest beta | `cargo install --locked pijul` | project release |
-| Git fallback | `git` | 2.40.0 | latest | system pkg | system updates |
-| Shell | `nu` | 0.99.0 | latest | `cargo install --locked` | CI monthly |
-| Documentation | `asciidoctor` | 2.0.0 | latest | `gem install` | CI monthly |
-| Documentation PDF | `asciidoctor-pdf` | 2.3.0 | latest | `gem install` | project release |
-| Prose lint | `vale` | 3.0.0 | latest | `brew` or download | CI monthly |
-| Doc structure lint | `asciidoc-linter` | 1.0.0 | latest | `gem install` | CI monthly |
-| Search | `ripgrep` (`rg`) | 14.0.0 | latest | `cargo install --locked` | CI quarterly |
-| File find | `fd-find` (`fd`) | 10.0.0 | latest | `cargo install --locked` | CI quarterly |
-| File view | `bat` | 0.24.0 | latest | `cargo install --locked` | CI quarterly |
-| Diff | `git-delta` (`delta`) | 0.18.0 | latest | `cargo install --locked` | CI quarterly |
-| Text replace | `sd` | 1.0.0 | latest | `cargo install --locked` | CI quarterly |
-| Disk usage | `dust` | 1.1.0 | latest | `cargo install --locked` | CI quarterly |
-| Process viewer | `procs` | 0.14.0 | latest | `cargo install --locked` | CI quarterly |
-| System monitor | `bottom` (`btm`) | 0.10.0 | latest | `cargo install --locked` | CI quarterly |
-| HTTP client | `xh` | 0.22.0 | latest | `cargo install --locked` | CI quarterly |
-| Dir nav | `zoxide` | 0.9.0 | latest | `cargo install --locked` | CI quarterly |
-| Code stats | `tokei` | 12.0.0 | latest | `cargo install --locked` | CI quarterly |
-| Benchmark | `hyperfine` | 1.18.0 | latest | `cargo install --locked` | CI quarterly |
-| Archive | `ouch` | 0.5.0 | latest | `cargo install --locked` | CI quarterly |
-| Security audit | `cargo-audit` | 0.20.0 | latest | `cargo install --locked` | CI weekly |
-| License/compliance | `cargo-deny` | 0.16.0 | latest | `cargo install --locked` | CI weekly |
-| MSRV check | `cargo-msrv` | 0.17.0 | latest | `cargo install --locked` | CI monthly |
-| Bloat analysis | `cargo-bloat` | 0.12.0 | latest | `cargo install --locked` | CI monthly |
-| Outdated deps | `cargo-outdated` | 0.16.0 | latest | `cargo install --locked` | CI monthly |
-| Expand macros | `cargo-expand` | 1.0.0 | latest | `cargo install --locked` | on-demand |
-| Shell prompt | `starship` | 1.20.0 | latest | `cargo install --locked` | CI quarterly |
-| Terminal multiplexer | `zellij` | 0.40.0 | latest | `cargo install --locked` | CI quarterly |
-| GPU-accelerated terminal | `alacritty` | 0.14.0 | latest | system pkg + `cargo install` | project release |
-| jj TUI | `gg` | latest | latest | `cargo install --locked gg` | CI quarterly |
-| Network utilization | `bandwhich` | 0.23.0 | latest | `cargo install --locked` | CI quarterly |
-| Ping with graphs | `gping` | 1.16.0 | latest | `cargo install --locked` | CI quarterly |
-| GNU coreutils rewrite | `coreutils` (uutils) | 0.0.27 | latest | `cargo install --locked` | project release |
+| Layer | Source | Pinning |
+|-------|--------|---------|
+| System tools (zig, asciidoctor, pandoc, vale, cmake, etc.) | nixpkgs via `flake.nix` | `flake.lock` (merkle tree of ALL transitive deps) |
+| Rust toolchain (rustc, cargo, clippy, rustfmt, etc.) | fenix overlay via `rust-toolchain.toml` | Exact version (e.g. `"1.85.0"`) |
+| Project binary | `crane.buildPackage` in Nix sandbox | `Cargo.lock` + `flake.lock` (dual merkle) |
 
 **MANDATE:** All `cargo install` SHALL use `--locked`.
-**RULE:** Any tool that fails `cargo install --locked` is non-compliant by default.
-Handle exceptions case-by-case and document in the project README with the EXACT reason.
+**MANDATE:** `cargo install` is FORBIDDEN in CI — CI builds happen inside Nix sandbox.
 
 ### 1.3 Target Architecture Matrix (Build Once, Run Anywhere)
 
@@ -657,6 +616,138 @@ sd        → sed      (simple find-and-replace, regex consistent)
 - **These tools are development environment, not project dependencies.** They live in your home
   directory (`~/.cargo/bin`), not in the project. They are NOT listed in `Cargo.toml`.
   They are NOT part of the CI pipeline. They are for developer productivity only.
+
+### 1.5 Hermetic Development Environment
+
+> **MANDATE:** Every project SHALL define its development environment in `flake.nix`.
+> **MANDATE:** Every project SHALL pin its Rust toolchain in `rust-toolchain.toml`.
+> **MANDATE:** `flake.lock` SHALL be committed to version control.
+
+#### 1.5.1 Nix Flake Entry Point (`flake.nix`)
+
+```nix
+{
+  description = "project — hermetic dev environment";
+
+  inputs = {
+    nixpkgs.url       = "github:NixOS/nixpkgs/nixos-unstable";
+    fenix.url         = "github:nix-community/fenix";
+    fenix.inputs.nixpkgs.follows = "nixpkgs";
+    crane.url         = "github:ipetkov/crane";
+    crane.inputs.nixpkgs.follows = "nixpkgs";
+    flake-utils.url   = "github:numtide/flake-utils";
+  };
+
+  outputs = { self, nixpkgs, fenix, crane, flake-utils }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ fenix.overlays.default ];
+        };
+        rustToolchain = pkgs.fenix.fromToolchainFile {
+          file = ./rust-toolchain.toml;
+          sha256 = "0000000000000000000000000000000000000000000000000000";
+        };
+        craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
+      in {
+        devShells.default = pkgs.mkShell {
+          packages = with pkgs; [
+            rustToolchain
+            just
+            zig
+            asciidoctor
+            pandoc
+            vale
+          ];
+        };
+      });
+}
+```
+
+#### 1.5.2 `rust-toolchain.toml` — Exact Rust Pinning
+
+```toml
+[toolchain]
+channel = "1.85.0"
+components = ["clippy", "rustfmt", "rust-src", "llvm-tools-preview"]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "x86_64-pc-windows-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-freebsd14",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+]
+```
+
+**RATIONALE:** `rust-toolchain.toml` is the single source of truth for Rust version. Every tool that reads it (rustup, fenix, crane) agrees on the exact version. No more "latest stable" drift.
+
+#### 1.5.3 `flake.lock` as Environment Merkle Root
+
+`flake.lock` is the cryptographic hash of EVERY transitive dependency in the environment:
+
+| Lock | What It Pins | Update Command |
+|------|-------------|----------------|
+| `flake.lock` | nixpkgs revision, fenix revision, crane revision | `nix flake update` |
+| `Cargo.lock` | Rust crate dependency tree | `cargo update` |
+| `rust-toolchain.toml` | Rust compiler + component versions | Manual edit |
+
+**MANDATE:** `flake.lock` SHALL be committed and reviewed like any source file.
+**MANDATE:** CI SHALL fail if `nix flake check` reports any issue.
+
+#### 1.5.4 Environment Integrity (`nix flake check`)
+
+```bash
+# Verify the entire environment is consistent
+nix flake check
+
+# Enter the hermetic development shell
+nix develop .
+
+# Build the project inside the sandbox
+nix build .
+```
+
+**MANDATE:** CI SHALL run `nix flake check` on every commit.
+**MANDATE:** CI SHALL NOT install anything outside the Nix sandbox.
+
+#### 1.5.5 Cross-Compilation Targets
+
+All targets are built from a **single Linux Nix host** using `pkgsCross`:
+
+| Target Triple | Nix Attribute | Requirement |
+|---------------|--------------|-------------|
+| `x86_64-unknown-linux-gnu` | `pkgs.pkgsCross.gnu64` | None (default) |
+| `aarch64-unknown-linux-gnu` | `pkgs.pkgsCross.aarch64-multiplatform` | None |
+| `x86_64-unknown-linux-musl` | `pkgs.pkgsCross.musl64` | None |
+| `aarch64-unknown-linux-musl` | `pkgs.pkgsCross.aarch64-multiplatform-musl` | None |
+| `x86_64-pc-windows-gnu` | `pkgs.pkgsCross.mingwW64` | None |
+| `x86_64-pc-windows-msvc` | `pkgs.pkgsCross.x86_64-windows` | Windows SDK |
+| `x86_64-unknown-freebsd14` | `pkgs.pkgsCross.x86_64-freebsd` | None |
+| `x86_64-apple-darwin` | `pkgs.pkgsCross.x86_64-darwin` | macOS host or remote builder |
+| `aarch64-apple-darwin` | `pkgs.pkgsCross.aarch64-darwin` | macOS host or remote builder |
+
+**FreeBSD strategy:** Cross-compiled FROM Linux TO FreeBSD via `pkgsCross.x86_64-freebsd`. No native Nix on FreeBSD is required. FreeBSD developers use a Linux CI runner or bhyve VM, documented as a remote-build pattern.
+
+#### 1.5.6 Hermetic Build Guarantee
+
+What the Nix sandbox PROVES at the mathematical level:
+
+| Property | Guarantee | Mechanism |
+|----------|-----------|-----------|
+| System deps repeatable | ✅ Content-addressed store | `/nix/store` — identical hash = identical bits |
+| rustc version stable | ✅ Exact pinned version | `rust-toolchain.toml` + fenix + flake.lock |
+| Cargo build hermetic | ✅ No network, no `/proc`, no `/usr`, fixed env | Nix build sandbox |
+| All transitive deps pinned | ✅ Complete merkle tree | `flake.lock` = hash of ALL inputs |
+| Bit-for-bit reproducibility | ✅ Same lock → same binary | Deterministic builds by default |
+| build.rs environment fixed | ✅ Nix sets fixed env vars | `build.rs` cannot read host state |
+| Rollback | ✅ `nix profile rollback` | All past envs remain in store |
+
+**MANDATE:** Before accepting any non-hermetic build step, prove that Nix sandbox cannot express it. If Nix CAN express it, the Nix expression is mandatory.
 
 ---
 
@@ -1986,119 +2077,41 @@ fuzz_target!(|data: &[u8]| {
 
 ---
 
-## Part 7: Cross-Compilation with Zig (cargo-zigbuild)
+## Part 7: Cross-Compilation
 
-### 7.1 Installation
+### 7.1 Primary Method — Nix Flakes
 
 ```bash
-# Install cargo-zigbuild
-cargo install --locked cargo-zigbuild
+# Build for current platform
+nix build .
 
-# Install Zig (if not already installed)
-# Via zigup:
-cargo install --locked zigup
-zigup default master
+# Build for specific target
+nix build .#x86_64-unknown-linux-musl
+nix build .#aarch64-unknown-linux-musl
+nix build .#x86_64-pc-windows-gnu
 
-# Via system package (Linux):
-# sudo apt install zig  # or equivalent
+# Build all targets
+nix build .#all
 ```
 
-### 7.2 Usage in Development
+### 7.2 Fallback — Zig via nixpkgs
+
+Zig linker remains available in the Nix dev shell via `pkgs.zig`. For ad-hoc cross-compilation outside Nix:
 
 ```bash
-# Build for Linux x86_64 (static musl)
+# Only for development iteration, NOT for CI
 cargo zigbuild --target x86_64-unknown-linux-musl --release
-
-# Build for ARM Linux (static musl)
-cargo zigbuild --target aarch64-unknown-linux-musl --release
-
-# Build for Windows (gcc compatible)
-cargo zigbuild --target x86_64-pc-windows-gnu --release
-
-# Build for macOS (requires macOS build host)
-cargo zigbuild --target aarch64-apple-darwin --release
 ```
 
-### 7.3 cross/targets.toml
+**MANDATE:** CI SHALL build ALL targets via `nix build` inside the Nix sandbox.
+**MANDATE:** `cargo-zigbuild` is FORBIDDEN in CI.
+**SHOULD:** Use `nix build` for local cross-compilation. `cargo zigbuild` is acceptable for quick iteration.
 
-```toml
-# Targets supported by this project.
-# Run `just cross` to build all targets.
-# Run `just cross TARGET` to build specific target.
+### 7.3 cross/targets.toml (Optional)
 
-[targets]
-linux-amd64  = "x86_64-unknown-linux-musl"
-linux-arm64  = "aarch64-unknown-linux-musl"
-linux-arm32  = "armv7-unknown-linux-musleabihf"
-windows-amd64 = "x86_64-pc-windows-gnu"
-wasm         = "wasm32-wasi"
-riscv64      = "riscv64gc-unknown-linux-musl"
+If a `cross/targets.toml` exists, its targets MUST match a subset of the Nix build matrix. It is purely a development convenience for `cargo zigbuild` iteration.
 
-# Targets requiring macOS build host (CI only)
-# macos-arm64  = "aarch64-apple-darwin"
-# macos-amd64  = "x86_64-apple-darwin"
-```
-
-### 7.4 xtask Cross-Compilation Task
-
-```rust
-/// [LINTED] Cross-compiles the project for all configured targets.
-pub fn run(target_filter: Option<&str>) -> Result<()> {
-    let targets = load_targets()?;
-
-    for (name, target) in &targets {
-        if let Some(filter) = target_filter {
-            if name != &filter {
-                continue;
-            }
-        }
-
-        println!("Building for {name} ({target})...");
-        run_command(
-            "cargo",
-            &["zigbuild", "--target", target, "--release"],
-            &format!("Cross-compile failed for {name} ({target})"),
-        )?;
-        println!("  ✓ {name}");
-    }
-
-    println!("All targets built.");
-    Ok(())
-}
-```
-
-### 7.5 justfile Cross-Compile Recipes
-
-```just
-# Build for current platform (debug)
-build:
-    cargo build
-
-# Build for current platform (release)
-build-release:
-    cargo build --release
-
-# Cross-compile for all configured targets
-cross:
-    cargo xtask cross
-
-# Cross-compile for specific target
-cross-one TARGET:
-    cargo xtask cross --target {{TARGET}}
-
-# Cross-compile for Linux (all architectures)
-cross-linux:
-    cargo zigbuild --target x86_64-unknown-linux-musl --release
-    cargo zigbuild --target aarch64-unknown-linux-musl --release
-
-# Cross-compile for Windows
-cross-windows:
-    cargo zigbuild --target x86_64-pc-windows-gnu --release
-```
-
-**RATIONALE:** Static linking with musl via Zig produces a single binary with no runtime
-dependencies. It runs on any Linux distro (any glibc version, any musl-based distro,
-Alpine, etc.) without modification. No containers needed. No shared library conflicts.
+**RATIONALE:** Nix provides the same "build once, run anywhere" property as zigbuild, but with stronger guarantees: content-addressed dependencies, exact toolchain pinning, and full sandbox isolation. Zig is still available for its linker capabilities when needed.
 
 ---
 
@@ -2256,15 +2269,43 @@ release VERSION:
     cargo xtask release --version {{VERSION}}
 
 # ─────────────────────────────────────────
-# SETUP
+# NIX ENVIRONMENT (PRIMARY)
 # ─────────────────────────────────────────
 
-# Install all required tools
-setup:
+# Enter hermetic development shell
+shell:
+    nix develop .
+
+# Verify environment integrity
+deps:
+    nix flake check
+
+# Build for current platform
+build:
+    nix build .
+
+# Cross-compile for all targets
+cross:
+    nix build .#all
+
+# Cross-compile for one target
+cross-one TARGET:
+    nix build .#{{TARGET}}
+
+# CI check (equivalent to full pipeline)
+ci:
+    nix build .#checks
+
+# ─────────────────────────────────────────
+# SETUP (LEGACY — for non-Nix users)
+# ─────────────────────────────────────────
+
+# Install all required tools (legacy)
+setup-legacy:
     nu scripts/dev-setup.nu
 
-# Verify all required tools present
-deps:
+# Verify all required tools present (legacy)
+deps-legacy:
     nu scripts/check-deps.nu
 
 # ─────────────────────────────────────────
@@ -2959,207 +3000,45 @@ if ($"($env.HOME)/.cache/starship/init.nu" | path exists) {
 }
 ```
 
-### 11.2 scripts/check-deps.nu
+### 11.2 scripts/check-deps.nu (Replaced by Nix)
+
+`scripts/check-deps.nu` is replaced by `nix flake check`, which verifies the full
+environment integrity at the Nix level. A thin shim remains for backwards compatibility:
 
 ```nushell
 #!/usr/bin/env nu
 # check-deps.nu
-# Verify all required tools are installed.
-# Strict: any missing tool = hard error.
+# Thin wrapper around nix flake check.
+# The canonical deps check is: nix flake check
 
 def main [] {
-    let required = [
-        {name: "cargo",       min_version: "1.85.0"}
-        {name: "rustc",       min_version: "1.85.0"}
-        {name: "jj",          min_version: "0.41.0"}
-        {name: "just",        min_version: "1.36.0"}
-        {name: "asciidoctor", min_version: "2.0.0"}
-        {name: "pandoc",      min_version: "3.0.0"}
-        {name: "vale",        min_version: "3.0.0"}
-        {name: "rg",          min_version: "14.0.0"}
-        {name: "fd",          min_version: "10.0.0"}
-        {name: "bat",         min_version: "0.24.0"}
-        {name: "eza",         min_version: "0.18.0"}
-        {name: "delta",       min_version: "0.18.0"}
-        {name: "sd",          min_version: "1.0.0"}
-        {name: "dust",        min_version: "1.1.0"}
-        {name: "btm",         min_version: "0.10.0"}
-        {name: "procs",       min_version: "0.14.0"}
-        {name: "xh",          min_version: "0.22.0"}
-        {name: "zoxide",      min_version: "0.9.0"}
-        {name: "hx",          min_version: "25.0"}
-        {name: "ouch",        min_version: "0.5.0"}
-        {name: "tokei",       min_version: "12.0.0"}
-        {name: "hyperfine",   min_version: "1.18.0"}
-        {name: "cargo-zigbuild", min_version: "0.19.0"}
-        {name: "kani",        min_version: "0.55.0"}
-        {name: "starship",    min_version: "1.20.0"}
-        {name: "zellij",      min_version: "0.40.0"}
-        {name: "alacritty",   min_version: "0.14.0"}
-        {name: "gg",          min_version: "latest"}
-        {name: "bandwhich",   min_version: "0.23.0"}
-        {name: "gping",       min_version: "1.16.0"}
-        {name: "dog",         min_version: "0.1.0"}
-    ]
-
-    let mut missing = []
-    let mut passed  = []
-
-    for tool in $required {
-        let exists = (which $tool.name | length) > 0
-
-        if not $exists {
-            $missing = ($missing | append $tool.name)
-        } else {
-            $passed = ($passed | append $tool.name)
-        }
+    print "Checking development environment via Nix..."
+    let result = (^nix flake check o+e>| complete)
+    if $result.exit_code != 0 {
+        error make {msg: $"Environment check failed: ($result.stderr)"}
     }
-
-    if ($passed | length) > 0 {
-        print $"(ansi green)✓ Found:(ansi reset) ($passed | str join ', ')"
-    }
-
-    if ($missing | length) > 0 {
-        print $"(ansi red)✗ Missing:(ansi reset) ($missing | str join ', ')"
-        print ""
-        print "Install missing tools:"
-        print $"  cargo install --locked ($missing | str join ' ')"
-        print ""
-        error make {
-            msg: $"($missing | length) required tools missing"
-        }
-    }
-
-    print $"(ansi green)All required tools present.(ansi reset)"
+    print $"(ansi green)All environment checks passed.(ansi reset)"
 }
 ```
 
-### 11.3 scripts/dev-setup.nu
+### 11.3 scripts/dev-setup.nu (Replaced by Nix)
+
+`scripts/dev-setup.nu` is replaced by `nix develop .`, which provides a
+hermetic development shell. A thin shim remains for backwards compatibility:
 
 ```nushell
 #!/usr/bin/env nu
 # dev-setup.nu
-# Install all required development tools.
-# Idempotent: safe to run multiple times.
+# Thin wrapper around nix develop.
+# The canonical setup is: nix develop .
 
 def main [] {
-    print "Setting up development environment..."
-
-    setup-rust
-    setup-cargo-tools
-    setup-cargo-rust-utils
-    setup-doc-tools
-    setup-vcs
-
-    run-external "just" ["deps"]
-
-    print $"(ansi green)Development environment ready.(ansi reset)"
-}
-
-def setup-rust [] {
-    print "Configuring Rust toolchain..."
-
-    # MANDATE: wasm target for WebAssembly builds
-    run-external "rustup" ["target" "add"
-        "thumbv7em-none-eabihf"    # embedded no_std
-        "wasm32-wasi"              # WebAssembly
-    ]
-
-    run-external "rustup" ["component" "add"
-        "clippy"
-        "rustfmt"
-        "rust-src"
-        "llvm-tools-preview"
-    ]
-}
-
-def setup-cargo-tools [] {
-    print "Installing Cargo tools..."
-
-    let tools = [
-        "cargo-audit"
-        "cargo-outdated"
-        "cargo-msrv"
-        "cargo-deny"
-        "cargo-expand"
-        "cargo-bloat"
-        "cargo-zigbuild"
-        "cargo-fuzz"
-        "cargo-kani"
-    ]
-
-    for tool in $tools {
-        print $"  Installing ($tool)..."
-        run-external "cargo" ["install" "--locked" $tool]
+    print "Setting up development environment via Nix..."
+    let result = (^nix develop . o+e>| complete)
+    if $result.exit_code != 0 {
+        error make {msg: $"Environment setup failed: ($result.stderr)"}
     }
-}
-
-def setup-cargo-rust-utils [] {
-    print "Installing Rust utility replacements..."
-
-    let utils = [
-        "ripgrep"
-        "fd-find"
-        "bat"
-        "eza"
-        "sd"
-        "dust"
-        "procs"
-        "bottom"
-        "zoxide"
-        "hyperfine"
-        "tokei"
-        "ouch"
-        "xh"
-        "git-delta"
-        "jujutsu"
-        # Dev environment tools
-        "starship"                   # cross-shell prompt
-        "zellij"                     # terminal multiplexer
-        "gg"                         # jj TUI client
-        "bandwhich"                  # network utilization
-        "gping"                      # ping with graphs
-        "dog"                        # DNS lookup (basic)
-        "coreutils"                  # uutils — GNU coreutils rewrite
-    ]
-
-    for util in $utils {
-        print $"  Installing ($util)..."
-        run-external "cargo" ["install" "--locked" $util]
-    }
-
-    print ""
-    print "Note: alacritty GPU terminal requires system packages:"
-    print "  Linux: apt install cmake libfreetype6-dev libfontconfig1-dev"
-    print "  macOS: brew install cmake freetype fontconfig"
-    print "  Then: cargo install --locked alacritty"
-    print ""
-    print "Note: uutils/coreutils replaces GNU coreutils system-wide."
-    print "  Ensure ~/.cargo/bin is BEFORE /usr/bin in PATH."
-    print "  Test edge cases before removing system coreutils."
-}
-
-def setup-doc-tools [] {
-    print "Installing documentation tools..."
-
-    run-external "gem" ["install"
-        "asciidoctor"
-        "asciidoctor-pdf"
-        "asciidoc-linter"
-    ]
-
-    # Install Vale (not available via gem on all platforms)
-    # See: https://vale.sh/docs/install/
-}
-
-def setup-vcs [] {
-    print "Configuring VCS (jj)..."
-    run-external "jj" ["util", "config", "set", "user.name", (whoami)]
-    run-external "jj" ["util", "config", "set", "user.email", $'(whoami)@(hostname)']
-    run-external "jj" ["util", "config", "set", "ui.editor", "hx"]
-
-    print "Note: jj is 100% git-compatible. GitHub protections apply unchanged."
-    print "When pijul reaches >=1.0.0 stable, evaluate migration (see STANDARDS.md §10.3)."
+    print $"(ansi green)Development environment ready. Run 'nix develop .' to enter.(ansi reset)"
 }
 ```
 
@@ -4149,6 +4028,11 @@ By adopting this standard, you commit to:
 | gping | https://github.com/orf/gping |
 | dog | https://github.com/ogham/dog |
 | coreutils (uutils) | https://github.com/uutils/coreutils |
+| nixpkgs | https://github.com/NixOS/nixpkgs |
+| fenix (Rust overlay) | https://github.com/nix-community/fenix |
+| crane (Rust builder) | https://github.com/ipetkov/crane |
+| cachix (binary cache) | https://cachix.org |
+| nix (package manager) | https://nixos.org/download |
 
 ---
 

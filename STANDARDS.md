@@ -49,7 +49,8 @@
   explicit. Never assert `__STDC_VERSION__>=201710L` (tcc reports 199901).
 - MANDATE sqlite: `sh` owns all CLI calls. Lua generates/parses
   text only. `PRAGMA journal_mode=WAL;` per DB.
-- MANDATE KV: strip `|` from data. Internal `lc|Company|Location`.
+- MANDATE KV: strip `|` from data. Internal
+  `hwnd|tags|floating|x|y|w|h` (window records).
   Final RFC4180-minimal CSV.
 - MANDATE make: first line `.POSIX:`. Suffix rules only. Recipes
   are `sh`. No `%`/`include`/`shell`/`wildcard`.

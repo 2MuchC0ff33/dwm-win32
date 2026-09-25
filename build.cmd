@@ -1,3 +1,5 @@
+REM LEGACY — not canonical. Canonical build: CC=tcc via `busybox make --posix` (see Makefile, AGENTS.md).
+REM Kept for reference only; do not extend.
 IF NOT EXIST src\\config.h COPY config.h.in src\\config.h
 zig cc ^
     -o dwm-win32.exe src/dwm-win32.c src/win32_utf8.c ^

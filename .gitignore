@@ -1,7 +1,8 @@
 *.exe
 *.pdb
+*.luac
 
-config.h
+src/config.h
 
 tags
 *.swp
@@ -11,4 +12,11 @@ tags
 compile_commands.json
 
 dwm-win32.log
-zig-cache/
+
+var/build/
+var/log/
+srv/*.db
+srv/*.db-wal
+srv/*.db-shm
+etc/*.local
+tmp/

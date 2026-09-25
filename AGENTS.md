@@ -42,11 +42,13 @@
 5. `sqlite3 3.53.4` — primary DB. `sh` owns ALL invocations. Lua never
    shell-outs. `PRAGMA journal_mode=WAL;` per DB.
 6. `flat-KV` — interchange. `|` reserved/stripped. Internal
-   `lc|Company|Location`. Final RFC4180-minimal CSV.
+   `hwnd|tags|floating|x|y|w|h`. Final RFC4180-minimal CSV.
 7. `make` — `busybox make --posix` only. First line `.POSIX:`.
    Suffix rules only. No `%`/`include`/`shell`/`wildcard`/`+=` abuse.
-8. `*rc` — config only here. `KEY="value"`, sourced, `:-defaults`,
-   `TEST_*` env overrides. `*.local` overlay gitignored.
+8. `*rc` — config only here (`etc/dwmrc`). `KEY="value"`, sourced,
+   `:-defaults`, `TEST_*` env overrides. `*.local` overlay gitignored.
+   State in `srv/dwm.db`. Lua bytecode run via `lua_bytecode()`
+   (`var/build/*.luac`).
 
 ## 3. Pins
 

@@ -1,1 +1,14 @@
-* text=auto
+* text=auto eol=lf
+*.sh text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.c text eol=lf
+*.h text eol=lf
+*.lua text eol=lf
+*.md text eol=lf
+Makefile text eol=lf
+*.toml text eol=lf
+*.png binary
+*.exe binary
+*.zip binary
+extern/** -text linguist-vendored

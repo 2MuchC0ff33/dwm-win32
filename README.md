@@ -132,27 +132,38 @@ which we would have to filter out.
 Unfortunately the SetWindowsHookEx thingy seems to require a separate
 dll because it will be loaded into each process address space.
 
+TOOLCHAIN
+=========
+
+Canonical stack: `posix-toolchain-stack` (index law). See
+`STANDARDS.md` and `AGENTS.md`.
+
+- `sh` glue + `awk` stream (POSIX-mandated, busybox-w32 v1.38.0.git-7099)
+- `Lua 5.5.0` stdlib-only, bytecode-canonical (`luac -s`)
+- `C17 via tcc 0.9.27` hot-path only (`CC=tcc`, K&R style)
+- `sqlite3 3.53.4`, flat-KV interchange, `busybox make --posix` build
+- `*rc` config, `etc/posix_allowlist.txt` scope law
+
 COMPILING
 =========
 
 To compile, dwm-win32 requires:
-- [Visual Studio C/C++ Build Tools and Windows SDK](https://visualstudio.microsoft.com/downloads/) (You can use the Visual Studio Installer to download only headless c/c++ build tools and windows sdk without the full IDE)
-- [zig](https://ziglang.org/)
+- [tcc 0.9.27](https://bellard.org/tcc/) (`CC=tcc`, canonical)
+- busybox-w32 via scoop mingit-busybox 2.55.0.5 (`busybox make --posix`)
+- [Lua 5.5.0](https://www.lua.org/) stdlib-only (no LuaJIT/FFI)
 
-Source code for dwm-win32 is written in C and uses `zig cc` to compile C to native code.
-You can install the Zig compiler by using [scoop](https://scoop.sh) as `scoop install zig`.
-
-```cmd
-build.cmd
+```sh
+busybox make --posix
 ```
 
-* Remove `-DNDEBUG` and `-O2 -s` from `build.cmd` to build debug version.
-* Update version in build.cmd before release
+* Legacy `build.cmd` / `zig cc` retained for reference only, not canonical.
+* Remove `-DNDEBUG` and `-O2 -s` from build recipe to build debug version.
+* Update version in Makefile before release
 
 TODO
 ====
 
- - support luajit
+  - windows status/config via *rc + sqlite state (no luajit: Lua 5.5.0 stdlib-only)
  - show/hide child windows upon tag switch, in theory this should already
    work but in practice we need to tweak ismanageable() so that it
    recognises child windows but doesn't generate false positives.
